@@ -98,7 +98,22 @@ export function portfolioAdminUser(user,onSave){
    if(['image','gallery'].includes(kind)){
     const photosTools=el('div',undefined,'editor-actions');
     const connectPhotos=el('button','Connect Google Photos','button ghost');connectPhotos.type='button';
-    connectPhotos.onclick=()=>window.open('/api/portfolio/content/photos/connect','_blank','noopener');
+    let connectingPhotos=false;
+    const updatePhotosConnection=async()=>{
+     try{
+      const state=await contentRequest('photos/status');
+      if(epoch!==generation||!sheet.open)return;
+      connectPhotos.textContent=state.connected?'Reconnect Google Photos':'Connect Google Photos';
+      if(state.connected&&connectingPhotos){connectingPhotos=false;note.textContent='Google Photos connected. Click Choose from Google Photos to select images.';}
+     }catch(error){if(connectingPhotos&&epoch===generation&&sheet.open)note.textContent=error.message;}
+    };
+    const photosChannel=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('th-portfolio-photos');
+    if(photosChannel)photosChannel.onmessage=event=>{if(event.data?.type==='connected')updatePhotosConnection();};
+    const onPhotosFocus=()=>{if(connectingPhotos)updatePhotosConnection();};
+    window.addEventListener('focus',onPhotosFocus);
+    sheet.addEventListener('close',()=>{photosChannel?.close();window.removeEventListener('focus',onPhotosFocus);},{once:true});
+    connectPhotos.onclick=()=>{connectingPhotos=true;note.textContent='Complete Google approval in the new tab, then return here. Your draft stays open.';window.open('/api/portfolio/content/photos/connect','_blank','noopener');};
+    updatePhotosConnection();
     const choosePhotos=el('button','Choose from Google Photos','button ghost');choosePhotos.type='button';
     choosePhotos.onclick=async()=>{
      const picker=window.open('about:blank','th-photos-picker');if(picker)picker.opener=null;
