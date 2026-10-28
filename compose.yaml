@@ -1,0 +1,48 @@
+services:
+  database:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: th_portfolio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./database-init.sh:/docker-entrypoint-initdb.d/mes-role.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d th_portfolio]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build: .
+    image: ghcr.io/tuanpham0411/th-portfolio:${IMAGE_TAG:-latest}
+    command: [node, dist/server/migrate.cjs]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@database:5432/th_portfolio
+      PORTFOLIO_ORIGIN: ${PORTFOLIO_ORIGIN:?Set PORTFOLIO_ORIGIN}
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+  portfolio:
+    image: ghcr.io/tuanpham0411/th-portfolio:${IMAGE_TAG:-latest}
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://th_api:${APP_DB_PASSWORD}@database:5432/th_portfolio
+      PORT: 3000
+      HOST: 0.0.0.0
+      FILES_ROOT: /data/files
+      TRUST_PROXY: loopback,linklocal,uniquelocal
+    ports:
+      - 127.0.0.1:8080:3000
+    volumes:
+      - media:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  database:
+  media:
