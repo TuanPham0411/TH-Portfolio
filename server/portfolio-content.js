@@ -1,3 +1,4 @@
+import {portfolioPhotosRouter} from './portfolio-photos.js';
 import {validateTimelineLayout} from '../site/manual-timeline-layout.js';
 import {isHeic} from './heic-format.js';
 import {normalizeHeicFile} from './heic-upload.js';
@@ -15,6 +16,7 @@ const error=(status,message)=>Object.assign(new Error(message),{status,expose:tr
 const types=new Set(['image/heic','image/heif','image/heic-sequence','image/heif-sequence','image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','audio/mpeg','audio/mp4','audio/ogg','audio/wav']);
 export function portfolioContentRouter(pool,root){
  const router=Router();
+ router.use('/photos',portfolioPhotosRouter(pool,root));
  async function admin(req){const {rows:[user]}=await pool.query('select u.id from portfolio.users u join portfolio.sessions s on s.uid=u.id where s.hash=$1 and s.expires>now() and u.admin and u.verified',[hash(req.cookies.th_portfolio||'')]);return user;}
  async function load(db=pool){const {rows:[row]}=await db.query("select version,data from portfolio.content where id='main'");const value=normalizePortfolio(row?{...row.data,version:row.version}:defaultPortfolio);const all=referencedMedia(value);for(const [id,desc]of Object.entries(value.mediaDescriptions)){all.add(id);for(const child of desc.media)all.add(child);}const ids=[...all].filter(id=>/^[a-f0-9-]{36}$/.test(id));const {rows}=await db.query('select id,type from portfolio.media where ready and id=any($1::uuid[])',[ids]);value.mediaTypes=Object.fromEntries(rows.map(m=>[m.id,m.type]));for(const id of Object.keys(value.mediaDescriptions))if(!id.startsWith('asset:')&&!value.mediaTypes[id])delete value.mediaDescriptions[id];return value;}
 
@@ -96,7 +98,7 @@ export function portfolioContentRouter(pool,root){
   res.json({rows:rows.slice(0,50),hasMore:rows.length>50,summary:summary.rows[0],retentionDays:90});
  });
 
- router.get('/library',async(req,res)=>{if(!await admin(req))throw error(403,'Administrator required');res.json({rows:(await pool.query('select id,type,size,name from portfolio.media where ready order by created_at desc limit 500')).rows});});
+ router.get('/library',async(req,res)=>{if(!await admin(req))throw error(403,'Administrator required');res.json({rows:(await pool.query("select m.id,m.type,m.size,m.name,case when p.media_id is not null then 'google-photos' else 'upload' end as source from portfolio.media m left join portfolio.photos_references p on p.media_id=m.id where m.ready order by m.created_at desc limit 500")).rows});});
  router.delete('/media/:id',async(req,res)=>{
  if(!await admin(req))throw error(403,'Administrator required');if(!/^[a-f0-9-]{36}$/.test(req.params.id))throw error(400,'Invalid media');
  const db=await pool.connect();try{await db.query('begin');await db.query('select pg_advisory_xact_lock(74529101)');const content=await load(db);if(referencedMedia(content).has(req.params.id)||Object.values(content.mediaDescriptions).some(desc=>desc.media.includes(req.params.id)))throw error(409,'Remove this media from content and save before deleting');await deleteEverywhere(root,`portfolio/${req.params.id}`);await db.query('delete from portfolio.media where id=$1',[req.params.id]);await db.query('commit');}catch(e){await db.query('rollback');throw e;}finally{db.release();}res.json({ok:true});
@@ -104,3 +106,4 @@ export function portfolioContentRouter(pool,root){
  router.get('/media/:id',async(req,res)=>{if(!/^[a-f0-9-]{36}$/.test(req.params.id))return res.sendStatus(404);const content=publicPortfolio(await load());if(!referencedMedia(content).has(req.params.id)&&!await admin(req))return res.sendStatus(404);const {rows:[file]}=await pool.query('select type from portfolio.media where id=$1 and ready',[req.params.id]);if(!file)return res.sendStatus(404);res.type(file.type);res.set({'Cache-Control':content.profile.portrait===req.params.id?'private, max-age=0, must-revalidate':'private, no-store','Content-Security-Policy':"default-src 'none'; sandbox"});res.sendFile(await filePath(root,`portfolio/${req.params.id}`));});
  return router;
 }
+
