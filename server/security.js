@@ -8,8 +8,9 @@ export function actorFor(session, tester) { return { ...(typeof session === 'str
 export function sameOrigin(req,res,next) {
   // Google returns via a cross-site navigation. This exact GET endpoint is
   // protected by OAuth state and the PKCE verifier cookie in oauthRouter.
-  if (req.method === 'GET' && ['/api/oauth/callback','/api/mes/drive/callback'].includes(req.originalUrl.split('?')[0])) return next();
+  if (req.method === 'GET' && ['/api/oauth/callback','/api/mes/drive/callback','/api/portfolio/content/photos/callback'].includes(req.originalUrl.split('?')[0])) return next();
   if (req.headers.origin && req.headers.origin !== publicOrigin(req)) return res.status(403).json({error:'Origin denied'});
   if (req.headers['sec-fetch-site'] === 'cross-site') return res.status(403).json({error:'Origin denied'});
   next();
 }
+

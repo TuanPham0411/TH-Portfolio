@@ -76,7 +76,7 @@ export function portfolioAdminUser(user,onSave){
     for(const m of value.rows.filter(matches)){
      const card=el('article',undefined,'library-card');if(m.type.startsWith('audio/')){const audio=el('audio');audio.src=mediaURL(m.id);audio.controls=true;audio.preload='none';card.append(audio);}else card.append(mediaElement(m.id,m.name));
      if(m.type.startsWith('image/')){const describe=el('button','✎ Hover description / media','text-button');describe.type='button';describe.onclick=()=>describeImage(m.id);card.append(describe);}
-     card.append(el('p',`${m.name} · ${(Number(m.size)/1048576).toFixed(1)} MB`));
+     card.append(el('p',`${m.name} · ${(Number(m.size)/1048576).toFixed(1)} MB${m.source==='google-photos'?' · Google Photos':''}`));
      const choose=el('button','Use in content','button ghost');choose.type='button';choose.onclick=()=>{if(select(m.id)){note.textContent='Selected. Save changes to apply.';if(!multiple)sheet.close();}};
      const del=el('button','Delete from library','text-button');del.type='button';del.onclick=async()=>{if(!confirm(`Permanently delete ${m.name}?`))return;try{await contentRequest('media/'+m.id,{method:'DELETE'});await refresh();}catch(error){note.textContent=error.message;}};card.append(choose,del);list.append(card);
     }
@@ -95,6 +95,38 @@ export function portfolioAdminUser(user,onSave){
     catch(error){failed=true;note.textContent=error.message;}finally{upload.value='';upload.disabled=false;save.disabled=false;progress.hidden=true;}
     if(!multiple&&!failed&&epoch===generation)sheet.close();
    };
+   if(['image','gallery'].includes(kind)){
+    const photosTools=el('div',undefined,'editor-actions');
+    const connectPhotos=el('button','Connect Google Photos','button ghost');connectPhotos.type='button';
+    connectPhotos.onclick=()=>window.open('/api/portfolio/content/photos/connect','_blank','noopener');
+    const choosePhotos=el('button','Choose from Google Photos','button ghost');choosePhotos.type='button';
+    choosePhotos.onclick=async()=>{
+     const picker=window.open('about:blank','th-photos-picker');if(picker)picker.opener=null;
+     choosePhotos.disabled=true;upload.disabled=true;save.disabled=true;
+     try{
+      const session=await contentRequest('photos/session',{method:'POST',body:JSON.stringify({})});
+      if(picker)picker.location.href=session.pickerUri;else{note.textContent='Allow popups to choose Google Photos.';return;}
+      note.textContent='Choose your images in Google Photos, then click Done.';
+      const deadline=Date.now()+600000;let ready=false;
+      while(Date.now()<deadline&&sheet.open&&epoch===generation){
+       const result=await contentRequest('photos/poll',{method:'POST',body:JSON.stringify({id:session.id})});
+       if(result.ready){ready=true;break;}
+       await new Promise(resolve=>setTimeout(resolve,result.pollAfterMs||2000));
+      }
+      if(!ready)throw Error('Photo selection was not completed. Choose again when ready.');
+      const selection=await contentRequest('photos/items',{method:'POST',body:JSON.stringify({id:session.id})});
+      for(const item of selection.items){
+       if(!sheet.open||epoch!==generation)break;
+       note.textContent='Linking and backing up '+item.name+'…';
+       const media=await contentRequest('photos/import',{method:'POST',body:JSON.stringify({id:session.id,itemId:item.id,name:item.name||'Google Photos image'})});
+       draft.mediaTypes[media.id]=media.type;setMediaTypes(draft.mediaTypes);select(media.id);
+      }
+      await refresh();note.textContent='Photos linked and backed up. Save changes to publish.';
+     }catch(error){if(picker&&!picker.closed)picker.close();note.textContent=error.message;}
+     finally{choosePhotos.disabled=false;upload.disabled=false;save.disabled=false;}
+    };
+    photosTools.append(connectPhotos,choosePhotos);sheet.insertBefore(photosTools,upload);
+   }
    try{await refresh();}catch(error){note.textContent=error.message;}
   }
   function mediaField(target,key,label,kind,multiple=false){
@@ -163,3 +195,4 @@ export function portfolioAdminUser(user,onSave){
   chooseSection('profile');
  }
 }
+

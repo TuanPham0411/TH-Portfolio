@@ -27,3 +27,25 @@ See [replacement-server and data restore guide](docs/REINSTALL.md) and [release 
 The current Portfolio frontend is synchronized with Thien-Ha `feat/mes-quick-access` at commit `66aa6e527d496679e3941eae02587e17660940ff`. Legacy `main` is older. `/build-info.json` identifies the compiled repository/revision and frontend hash. Admin edits are database/media content, not source files.
 
 For the existing RPI only, `deploy/install.sh` installs a dedicated `th-portfolio` service at loopback 3001 using the existing private `/etc/th-app/runtime.env`, database and media broker. It backs up the Portfolio schema, does not run migrations or replace content, removes only the legacy Portfolio Nginx block, preserves the MES block, and restores prior routing/service on failure. Fresh-server migration remains a separate operation. A one-off bridge workflow in Thien-Ha uses its existing registered runner; no registration token or secret is copied to this project. The default project workflow still packages without automatic production rollout.
+
+
+## TH-Server managed storage
+
+The optional `storage.compose.yaml` enables the canonical TH-RPI.Server broker.
+Application SQL transactions are acknowledged by Drive before committing the local
+PostgreSQL projection. Unchanged reads stay local. SQL function writes, background
+jobs and metadata changes use the same capture protocol. Each application has a
+separate broker credential, database and files volume. Do not copy Drive OAuth tokens
+into this repository or switch a provider manually.
+
+The managed deployment workflow runs only after a successful trusted main build. It
+uses the deployment implementation pinned from TH-RPI.Server, retains existing
+volumes and .env, creates a local database backup, uploads a Drive baseline and
+verifies application readiness. A failed migration keeps the maintenance fence and
+backup for operator recovery instead of silently accepting unsynchronized writes.
+
+Google Photos is Portfolio-only: enable Google Photos Picker API in the platform's
+Google OAuth project, add `https://th.io.vn/api/portfolio/content/photos/callback`,
+and use **Connect Google Photos** in the media library. Only selected images are
+accessible. Selected image IDs are linked in JSON; verified copies are also stored
+on Drive and cached locally because Google Photos download URLs expire.
