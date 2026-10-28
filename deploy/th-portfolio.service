@@ -1,0 +1,25 @@
+[Unit]
+Description=TH Portfolio independent API
+After=network.target postgresql.service th-storage.service th-storage-mounts.service
+Requires=postgresql.service
+[Service]
+Type=simple
+User=thapp
+Group=thapp
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=192
+EnvironmentFile=/etc/th-app/runtime.env
+WorkingDirectory=/opt/th-portfolio/current
+ExecStart=/opt/th-portfolio/current/runtime/bin/node /opt/th-portfolio/current/start-rpi.mjs
+Restart=on-failure
+RestartSec=5
+MemoryMax=512M
+TasksMax=64
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/th-app -/mnt -/media
+UMask=0077
+[Install]
+WantedBy=multi-user.target

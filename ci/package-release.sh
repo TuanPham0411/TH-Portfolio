@@ -7,7 +7,7 @@ mkdir -p "$root/work/node"
 rm -rf "$release"
 mkdir -p "$release/runtime"
 cp -a dist "$release/dist"
-for name in start.mjs package.json package-lock.json; do
+for name in start.mjs start-rpi.mjs package.json package-lock.json; do
   if test -f "$name"; then cp "$name" "$release/"; fi
 done
 if test -d mes/dist; then mkdir -p "$release/mes"; cp -a mes/dist "$release/mes/dist"; fi

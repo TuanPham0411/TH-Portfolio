@@ -2,5 +2,7 @@
   "repository": "TuanPham0411/Thien-Ha",
   "commit": "66aa6e527d496679e3941eae02587e17660940ff",
   "application": "portfolio",
-  "independent": true
+  "independent": true,
+  "sourceBranch": "feat/mes-quick-access",
+  "note": "Latest portfolio changes are on this feature branch, not legacy main. Admin-authored content/media remain in the live database and file storage."
 }

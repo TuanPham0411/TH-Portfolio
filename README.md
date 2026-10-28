@@ -21,3 +21,9 @@ Google callback: `https://th.io.vn/api/oauth/callback`. The configured verified 
 Every main push runs tests/build, creates a checksummed source archive and a Linux ARM64 release containing Node.js 22, and publishes a multi-architecture Docker image. Download the release artifact from the successful **Build, test and package** Actions run. Artifact retention is 30 days; image commit tags identify durable build revisions. No job runs on a self-hosted production runner or deploys automatically.
 
 See [replacement-server and data restore guide](docs/REINSTALL.md) and [release usage](RELEASE-README.md). Source archives, images and build bundles contain no live database/media, secret configuration or runner tokens.
+
+## Existing RPI update (authorized separately)
+
+The current Portfolio frontend is synchronized with Thien-Ha `feat/mes-quick-access` at commit `66aa6e527d496679e3941eae02587e17660940ff`. Legacy `main` is older. `/build-info.json` identifies the compiled repository/revision and frontend hash. Admin edits are database/media content, not source files.
+
+For the existing RPI only, `deploy/install.sh` installs a dedicated `th-portfolio` service at loopback 3001 using the existing private `/etc/th-app/runtime.env`, database and media broker. It backs up the Portfolio schema, does not run migrations or replace content, removes only the legacy Portfolio Nginx block, preserves the MES block, and restores prior routing/service on failure. Fresh-server migration remains a separate operation. A one-off bridge workflow in Thien-Ha uses its existing registered runner; no registration token or secret is copied to this project. The default project workflow still packages without automatic production rollout.

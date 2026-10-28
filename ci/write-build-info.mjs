@@ -1,0 +1,5 @@
+import {readdir,readFile,writeFile} from 'node:fs/promises';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';
+async function files(dir){const output=[];for(const entry of await readdir(dir,{withFileTypes:true})){const path=dir+'/'+entry.name;if(entry.isDirectory())output.push(...await files(path));else output.push(path);}return output.sort();}
+const hash=createHash('sha256');for(const path of await files('site')){hash.update(path+'\0');hash.update(await readFile(path));hash.update('\0');}
+const source=JSON.parse(await readFile('SOURCE.json','utf8'));let revision=process.env.GITHUB_SHA||'working-tree';try{revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();}catch{}
+await writeFile('dist/web/build-info.json',JSON.stringify({repository:'TuanPham0411/TH-Portfolio',revision,frontendSha256:hash.digest('hex'),source,features:['content-admin','proportional-journey','twelve-connector-anchors','connector-length-zero','caption-min-height-20','mobile-diagram','early-portrait-preload']},null,2)+'\n');

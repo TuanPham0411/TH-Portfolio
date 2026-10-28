@@ -28,6 +28,7 @@ jobs:
         with: {node-version: '22', cache: npm}
       - run: npm ci
       - run: npm test
+      - run: bash -n deploy/install.sh && python3 deploy/test-nginx-portfolio.py
       - run: npm run build
       - run: npm run test:integration
         env:

@@ -8,3 +8,6 @@ work/
 *.dump
 *.tar.gz
 *.log
+
+__pycache__/
+*.pyc
