@@ -7,7 +7,7 @@ source_dir=$(realpath "${1:?Artifact required}");release=${2:?Release ID require
 [[ $source_dir == /home/thadmin/actions-runner/_work/_temp/th-release-*/unpacked ]] || exit 1
 for file in dist/web/index.html dist/web/build-info.json dist/server/app.cjs runtime/bin/node start-rpi.mjs deploy/th-portfolio.service deploy/nginx-portfolio.conf deploy/nginx-portfolio.py; do test -f "$source_dir/$file"; done
 [[ -f /etc/th-app/runtime.env && -f /opt/th-app/current/server/app.cjs && ! -f /run/th-storage/backup-active ]] || { echo 'Existing Pi runtime required; or backup active'; exit 1; }
-systemctl is-active --quiet th-app nginx postgresql
+for service in th-app nginx postgresql; do systemctl is-active --quiet "$service"; done
 if ! systemctl is-active --quiet th-portfolio && [[ -n $(ss -H -ltn 'sport = :3001') ]]; then echo 'Port 3001 is occupied'; exit 1; fi
 [[ $(sudo -u postgres psql -d th_app -Atqc "select to_regclass('portfolio.content') is not null") == t ]] || { echo 'Existing content schema required'; exit 1; }
 state_sql="select version::text||':'||md5(data::text) from portfolio.content where id='main'"
@@ -49,6 +49,6 @@ nginx -t
 systemctl reload nginx
 curl -fsS --max-time 15 -H 'Host: th.io.vn' http://127.0.0.1/build-info.json >/dev/null
 curl -fsS --max-time 15 -H 'Host: mes.th.io.vn' http://127.0.0.1/api/health >/dev/null
-systemctl is-active --quiet th-portfolio th-app nginx postgresql cloudflared ssh
+for service in th-portfolio th-app nginx postgresql cloudflared ssh; do systemctl is-active --quiet "$service"; done
 trap - ERR
 echo 'Portfolio deployed; existing content fingerprint preserved; MES health passed.'
