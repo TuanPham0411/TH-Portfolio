@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm,readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {normalizeHeicFile} from '../server/heic-upload.js';
+import {normalizeHeicFile,heicWorkerPath} from '../server/heic-upload.js';
 import {isHeic,validateHeicDimensions} from '../server/heic-format.js';
 const fixture=()=>readFile('tests/fixtures/two-colors.heic.base64','utf8').then(s=>Buffer.from(s,'base64'));
 test('real HEIC is converted once to a browser-readable JPEG in an isolated worker',async()=>{
@@ -15,3 +15,5 @@ test('a spoofed HEIC header cannot create a ready JPEG',async()=>{
 test('HEIC dimension checks reject oversized metadata before decoding pixels',async()=>{
  const input=await fixture();validateHeicDimensions(input);const offset=input.indexOf(Buffer.from('ispe'));assert.ok(offset>0);input.writeUInt32BE(20000,offset+8);assert.throws(()=>validateHeicDimensions(input),/64 megapixels/);assert.equal(isHeic(Buffer.from('not an image')),false);
 });
+
+test('portable and Pi launchers resolve the compiled HEIC worker without source files',()=>{const worker='/app/dist/server/heic-worker.cjs';assert.equal(heicWorkerPath({entrypoint:'/app/start.mjs',cwd:'/app',exists:p=>p===worker}),worker);assert.equal(heicWorkerPath({entrypoint:'/app/start-rpi.mjs',cwd:'/app',exists:p=>p===worker}),worker);assert.equal(heicWorkerPath({entrypoint:worker.replace('heic-worker','app'),cwd:'/other',exists:p=>p===worker}),worker);});
