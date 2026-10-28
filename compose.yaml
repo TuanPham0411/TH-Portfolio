@@ -16,7 +16,7 @@ services:
     restart: unless-stopped
   migrate:
     build: .
-    image: ghcr.io/tuanpham0411/th-portfolio:${IMAGE_TAG:-latest}
+    image: ghcr.io/tuanpham0411/th-portfolio-app:${IMAGE_TAG:-latest}
     command: [node, dist/server/migrate.cjs]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@database:5432/th_portfolio
@@ -26,7 +26,7 @@ services:
         condition: service_healthy
     restart: "no"
   portfolio:
-    image: ghcr.io/tuanpham0411/th-portfolio:${IMAGE_TAG:-latest}
+    image: ghcr.io/tuanpham0411/th-portfolio-app:${IMAGE_TAG:-latest}
     build: .
     env_file: .env
     environment:

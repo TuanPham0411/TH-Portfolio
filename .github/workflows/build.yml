@@ -66,10 +66,11 @@ jobs:
         with:
           context: .
 
+          labels: org.opencontainers.image.source=https://github.com/TuanPham0411/TH-Portfolio
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ghcr.io/tuanpham0411/th-portfolio:${{ github.sha }}
-            ghcr.io/tuanpham0411/th-portfolio:latest
+            ghcr.io/tuanpham0411/th-portfolio-app:${{ github.sha }}
+            ghcr.io/tuanpham0411/th-portfolio-app:latest
           cache-from: type=gha,scope=th-portfolio-${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=th-portfolio-${{ matrix.target }}

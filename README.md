@@ -12,7 +12,7 @@ Use Node.js 22.12+ and PostgreSQL 17. Run `npm ci`, `npm test`, `npm run build`.
 
 ## Docker
 
-Copy `.env.example` to a private `.env`, set two distinct random hexadecimal passwords, your owner email and any required OAuth/SMTP credentials. Run `docker compose up -d --build` only when the replacement server is ready. Alternatively use published `ghcr.io/tuanpham0411/th-portfolio:latest` or an immutable commit tag. Frontend/API is available on loopback **8080**; database and files use separate named volumes. Both AMD64 and ARM64 images are built by GitHub Actions.
+Copy `.env.example` to a private `.env`, set two distinct random hexadecimal passwords, your owner email and any required OAuth/SMTP credentials. Run `docker compose up -d --build` only when the replacement server is ready. Alternatively use published `ghcr.io/tuanpham0411/th-portfolio-app:latest` or an immutable commit tag. Frontend/API is available on loopback **8080**; database and files use separate named volumes. Both AMD64 and ARM64 images are built by GitHub Actions.
 
 Google callback: `https://th.io.vn/api/oauth/callback`. The configured verified `OWNER_EMAIL` becomes the owner via Google; existing accounts/content can be restored from the prior server. SMTP is required for email registration, verification and reset. No credentials are bundled and no default password is installed.
 
