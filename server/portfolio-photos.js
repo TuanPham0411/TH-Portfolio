@@ -52,7 +52,7 @@ export function portfolioPhotosRouter(pool,root){
     await db.query('BEGIN');await db.query('select pg_advisory_xact_lock(74529101)');
     const {rows:[used]}=await db.query('select coalesce(sum(size),0)::bigint as size from portfolio.media');
     if(Number(used.size)+size>Math.min(storageQuota(),2*1024**3))throw fail(413,'Portfolio media storage limit reached');
-    await db.query('insert into portfolio.media(id,type,size,name,created_by,ready,storage_source) values($1,$2,$3,$4,$5,true,'google-photos')',[id,type,size,name,req.photosOwner.id]);
+    await db.query("insert into portfolio.media(id,type,size,name,created_by,ready,storage_source) values($1,$2,$3,$4,$5,true,'google-photos')",[id,type,size,name,req.photosOwner.id]);
     await db.query('insert into portfolio.photos_references(media_id,photos_id,picker_session,original_name) values($1,$2,$3,$4)',[id,req.body.itemId,req.body.id,name]);
     await db.query('COMMIT');
    }catch(error){await db.query('ROLLBACK');throw error;}finally{db.release();}
