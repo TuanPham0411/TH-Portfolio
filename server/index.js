@@ -1,3 +1,4 @@
+import {upgradeTicketProject} from './project-upgrade.js';
 import {managedPool} from './th-storage/client.mjs';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -24,8 +25,10 @@ export function createApp(pool,filesRoot,{webRoot=process.env.PORTFOLIO_WEB_ROOT
 if(process.env.NODE_ENV!=='test'){
  if(!process.env.DATABASE_URL)throw Error('DATABASE_URL must be configured');
  const pool=managedPool(new pg.Pool({connectionString:process.env.DATABASE_URL,max:4,connectionTimeoutMillis:5000,options:'-c statement_timeout=15000'}),'portfolio');pool.on('error',()=>console.error('Database connection interrupted'));
+ const start=async()=>{await upgradeTicketProject(pool);
  const app=createApp(pool,process.env.FILES_ROOT||'/data/files');const server=app.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1');server.requestTimeout=180000;
  const cleanup=setInterval(()=>pool.query('delete from portfolio.sessions where expires<now();delete from portfolio.tokens where expires<now()').catch(()=>{}),3600000);cleanup.unref();
  for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{clearInterval(cleanup);server.close(()=>pool.end().then(()=>process.exit(0)));});
+ };start().catch(()=>{console.error('Portfolio project upgrade failed');pool.end().finally(()=>process.exit(1));});
 }
 

@@ -71,7 +71,7 @@ export function portfolioAdminUser(user,onSave){
    const upload=el('input');upload.type='file';upload.accept=accepts[kind];upload.multiple=multiple;upload.setAttribute('aria-label','Upload media');
    const progress=el('progress');progress.max=100;progress.value=0;progress.hidden=true;const note=el('p','','editor-status');note.setAttribute('role','status');const list=el('div',undefined,'cms-library-grid');sheet.append(upload,progress,note,list);document.body.append(sheet);sheet.showModal();sheet.addEventListener('close',()=>{stopMedia(sheet);sheet.remove();},{once:true});
    const matches=m=>kind==='audio'?m.type.startsWith('audio/'):kind==='video'?m.type.startsWith('video/'):kind==='image'?m.type.startsWith('image/'):/^(image|video)\//.test(m.type);
-   const select=id=>{if(epoch!==generation)return false;if(multiple){if(target[key].includes(id))return true;if(target[key].length>=8){note.textContent='Each entry supports up to 8 images, GIFs or videos.';return false;}target[key].push(id);}else target[key]=id;changed();renderFields();onChoose?.();return true;};
+   const select=id=>{if(epoch!==generation)return false;if(multiple){if(target[key].includes(id))return true;target[key].push(id);}else target[key]=id;changed();renderFields();onChoose?.();return true;};
    async function refresh(){
     const value=await contentRequest('library');if(epoch!==generation){sheet.close();return;}
     for(const m of value.rows)draft.mediaTypes[m.id]=m.type;setMediaTypes(draft.mediaTypes);list.replaceChildren();

@@ -13,7 +13,7 @@ export function normalizePortfolio(input){
  value.hobbies||=[];value.notes||=[];value.titleStyles||={};value.mediaDescriptions||={};
  if(!value.toolkit){const tags=new Map();for(const skill of value.skills||[])for(const title of skill.tags||[]){if(tags.has(title)){if(skill.public)tags.get(title).public=true;continue;}tags.set(title,{id:'tool-'+tags.size,title,subtitle:'',description:'',tags:[],media:[],public:skill.public===true});}value.toolkit=[...tags.values()];}
  for(const item of value.education||[]){if(!item.date){const years=(item.subtitle||'').match(/(?:19|20)\d{2}/g);if(years?.length){item.date=years[0]+'-01-01';item.end=(years[1]||years[0])+'-12-31';item.datePrecision='year';}}} Object.assign(value.profile,{introVideo:value.profile.introVideo||'',introPoster:value.profile.introPoster||'',introPublic:value.profile.introPublic===true,heroImage:value.profile.heroImage||'asset:/images/ot-hero.webp',aboutImage:value.profile.aboutImage||value.profile.heroImage||'asset:/images/ot-hero.webp',identityLine:value.profile.identityLine??'PERSONAL HOME · CV · PORTFOLIO'});
- for(const key of groups)value[key]||=[];return value;
+ for(const key of groups)value[key]||=[];value.projects=renameTicketProjects(value.projects);return value;
 }
 export function referencedMedia(input){
  const value=normalizePortfolio(input),refs=new Set();for(const key of ['portrait','heroImage','aboutImage','music','introVideo','introPoster'])if(value.profile[key])refs.add(value.profile[key]);for(const group of groups)for(const item of value[group])for(const id of item.media||[])refs.add(id);
@@ -35,14 +35,23 @@ export function validatePortfolio(input){
  if(!value.titleStyles||typeof value.titleStyles!=='object'||Array.isArray(value.titleStyles)||Object.keys(value.titleStyles).length>2000)throw Error('Invalid title styles');
  for(const [key,style]of Object.entries(value.titleStyles))if(!/^[a-zA-Z0-9_-]{1,160}$/.test(key)||!style||!fonts.includes(style.font||'inherit')||style.size!==undefined&&(!Number.isFinite(style.size)||style.size<10||style.size>128)||style.color!==undefined&&!/^#[a-fA-F0-9]{6}$/.test(style.color))throw Error('Invalid title font, size or color');
  if(!value.mediaDescriptions||typeof value.mediaDescriptions!=='object'||Array.isArray(value.mediaDescriptions)||Object.keys(value.mediaDescriptions).length>500)throw Error('Invalid image descriptions');
- for(const [id,desc]of Object.entries(value.mediaDescriptions))if(!text(id,100)||!desc||!text(desc.title||'',160)||!text(desc.description||'',4000)||!Array.isArray(desc.media)||desc.media.length>8||desc.media.some(id=>!text(id,100)))throw Error('Invalid image description');
+ for(const [id,desc]of Object.entries(value.mediaDescriptions))if(!text(id,100)||!desc||!text(desc.title||'',160)||!text(desc.description||'',4000)||!Array.isArray(desc.media)||desc.media.some(id=>!text(id,100)))throw Error('Invalid image description');
  const ids=new Set();
  for(const key of groups){if(!Array.isArray(value[key])||value[key].length>100)throw Error('Maximum 100 entries per section');for(const e of value[key]){
  if(!e||!text(e.id,80)||!/^[a-zA-Z0-9_-]+$/.test(e.id)||ids.has(key+e.id)||!text(e.title,160)||!e.title.trim()||!text(e.subtitle,200)||!text(e.description,8000)||typeof e.public!=='boolean')throw Error(`Invalid ${key} entry`);ids.add(key+e.id);
- if(!Array.isArray(e.tags)||e.tags.length>20||e.tags.some(t=>!text(t,80))||!Array.isArray(e.media)||e.media.length>8||e.media.some(id=>!text(id,100)))throw Error('Invalid tags or media');
+ if(!Array.isArray(e.tags)||e.tags.length>20||e.tags.some(t=>!text(t,80))||!Array.isArray(e.media)||e.media.some(id=>!text(id,100)))throw Error('Invalid tags or media');
  if(e.kind&&!['work','education','life','milestone'].includes(e.kind)||e.datePrecision&&!['day','year'].includes(e.datePrecision))throw Error('Invalid milestone kind or date precision');
  if(key==='journey'||key==='education'&&e.date){if(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date))||new Date(e.date).toISOString().slice(0,10)!==e.date||Number(e.date.slice(0,4))<1900||Number(e.date.slice(0,4))>2200)throw Error('A valid milestone start date is required');if(e.end&&(!/^\d{4}-\d{2}-\d{2}$/.test(e.end)||!Number.isFinite(Date.parse(e.end))||new Date(e.end).toISOString().slice(0,10)!==e.end||e.end<e.date))throw Error('Invalid milestone end date');}
  if(key==='projects')for(const field of ['url','source'])if(e[field]&&(!text(e[field],1000)||!/^https:\/\//.test(e[field])||!URL.canParse(e[field])))throw Error('Project links must use HTTPS');
  }}
  if(JSON.stringify(value).length>700000)throw Error('Content is too large');return value;
 }
+
+export function renameTicketProjects(projects){return projects.map(project=>{
+ const legacy=['mes-ticket','th-mes-ticket'].includes(project.id)||/^https:\/\/mes\.th\.io\.vn(?:\/|$)/i.test(project.url||'')||/^(?:TH[ .-])?MES[ .-]Ticket$/i.test(project.title||project.name||'');
+ if(!legacy)return project;
+ const next={...project,name:'TH-Ticket',title:'TH-Ticket',url:'https://ticket.th.io.vn',source:'https://github.com/TuanPham0411/TH-Ticket'};
+ for(const key of ['subtitle','description'])if(typeof next[key]==='string')next[key]=next[key].replace(/\b(?:TH[ .-])?MES[ .-]Ticket\b/gi,'TH-Ticket').replace(/\bMES\b/g,'Ticket');
+ if(Array.isArray(next.tags))next.tags=next.tags.map(tag=>tag.replace(/\bMES\b/g,'Ticket'));
+ return next;
+});}
