@@ -70,5 +70,7 @@ jobs:
           assert matches, 'Public TH-Ticket project is missing'
           assert all(p.get('title')=='TH-Ticket' and p.get('name')=='TH-Ticket' for p in matches)
           assert all('mes.th.io.vn' not in p.get('url','') for p in projects)
-          print('Public TH-Ticket name and links verified')
+          studio=[p for p in projects if p.get('url')=='https://ai.th.io.vn']
+          assert studio and studio[0].get('title')=='TH Agent Studio', 'Public Studio project is missing'
+          print('Public TH-Ticket and TH Agent Studio projects verified')
           PYTHON

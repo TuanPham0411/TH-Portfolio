@@ -1,4 +1,4 @@
-import {renameTicketProjects} from '../site/portfolio-model.js';
+import {renameTicketProjects,ensureStudioProject} from '../site/portfolio-model.js';
 export async function upgradeTicketProject(pool){
  const db=await pool.connect();
  try{
@@ -6,7 +6,7 @@ export async function upgradeTicketProject(pool){
   await db.query('select pg_advisory_xact_lock(74529101)');
   const {rows:[row]}=await db.query("select data from portfolio.content where id='main' for update");
   if(row&&Array.isArray(row.data.projects)){
-   const projects=renameTicketProjects(row.data.projects);
+   const projects=ensureStudioProject(renameTicketProjects(row.data.projects));
    if(JSON.stringify(projects)!==JSON.stringify(row.data.projects))
     await db.query("update portfolio.content set data=jsonb_set(data,'{projects}',$1::jsonb),version=version+1,updated_at=now() where id='main'",[JSON.stringify(projects)]);
   }

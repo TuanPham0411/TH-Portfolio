@@ -55,3 +55,5 @@ export function renameTicketProjects(projects){return projects.map(project=>{
  if(Array.isArray(next.tags))next.tags=next.tags.map(tag=>tag.replace(/\bMES\b/g,'Ticket'));
  return next;
 });}
+
+export function ensureStudioProject(items){if(items.some(p=>p.id==='agent-studio'||/^https:\/\/ai\.th\.io\.vn(?:\/|$)/i.test(p.url||'')))return items;const project=projects.find(p=>p.id==='agent-studio');return [{...structuredClone(project),title:project.name,public:true,media:[]},...items];}
