@@ -134,11 +134,11 @@ export function portfolioAdminUser(user,onSave){
       const selection=await contentRequest('photos/items',{method:'POST',body:JSON.stringify({id:session.id})});
       for(const item of selection.items){
        if(!sheet.open||epoch!==generation)break;
-       note.textContent='Linking and backing up '+item.name+'…';
+       note.textContent='Caching Google Photos image on server: '+item.name+'…';
        const media=await contentRequest('photos/import',{method:'POST',body:JSON.stringify({id:session.id,itemId:item.id,name:item.name||'Google Photos image'})});
        draft.mediaTypes[media.id]=media.type;setMediaTypes(draft.mediaTypes);select(media.id);
       }
-      await refresh();note.textContent='Photos linked and backed up. Save changes to publish.';
+      await refresh();note.textContent='Google Photos images linked and cached on server; images are not copied to Drive. Save changes to publish.';
      }catch(error){note.textContent='Google Photos: '+error.message;}
      finally{choosePhotos.disabled=false;upload.disabled=false;save.disabled=false;}
     };
