@@ -55,3 +55,20 @@ jobs:
           command=['python3',source+'/application.py','--application',os.environ['TH_APPLICATION'],'--image-tag',os.environ['RELEASE_SHA'],'--source',source]
           subprocess.run(['sg','docker','-c',shlex.join(command)],check=True)
           PYTHON
+      - name: Verify public TH-Ticket project
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --max-time 60 https://th.io.vn/api/portfolio/content/ -o "$response"
+          python3 - "$response" <<'PYTHON'
+          import json,sys
+          with open(sys.argv[1]) as stream:
+              content=json.load(stream)
+          projects=content.get('projects',[])
+          matches=[p for p in projects if p.get('url')=='https://ticket.th.io.vn']
+          assert matches, 'Public TH-Ticket project is missing'
+          assert all(p.get('title')=='TH-Ticket' and p.get('name')=='TH-Ticket' for p in matches)
+          assert all('mes.th.io.vn' not in p.get('url','') for p in projects)
+          print('Public TH-Ticket name and links verified')
+          PYTHON
