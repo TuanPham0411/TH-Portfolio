@@ -8,7 +8,7 @@ import {Transform} from 'node:stream';
 import {hash} from './security.js';
 import {filePath,storageQuota} from './storage.js';
 import {brokerRequest,brokerStream} from './th-storage/client.mjs';
-import {isHeic} from './heic-format.js';
+import {photosImageType,photosImageName} from './photos-image-format.js';
 import {normalizeHeicFile} from './heic-upload.js';
 const fail=(status,message)=>Object.assign(new Error(message),{status,expose:true});
 const config=()=>({application:'portfolio',socketPath:process.env.TH_STORAGE_SOCKET,token:process.env.TH_STORAGE_TOKEN});
@@ -41,10 +41,10 @@ export function portfolioPhotosRouter(pool,root){
    path=await filePath(root,`portfolio/${id}`,true);await mkdir(dirname(path),{recursive:true});let size=0;
    await pipeline(incoming,new Transform({transform(chunk,encoding,callback){size+=chunk.length;callback(size>12*1024*1024?fail(413,'Google Photos images are limited to 12 MB'):null,chunk);}}),createWriteStream(path,{flags:'wx',mode:0o600}));
    const file=await open(path,'r');const bytes=Buffer.alloc(16);try{await file.read(bytes,0,16,0);}finally{await file.close();}
-   const heic=type==='image/heic'||type==='image/heif';
-   const valid=heic?isHeic(bytes):type==='image/jpeg'?bytes[0]===255&&bytes[1]===216&&bytes[2]===255:type==='image/png'?bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):type==='image/gif'?['GIF87a','GIF89a'].includes(bytes.toString('ascii',0,6)):bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
-   if(!valid)throw fail(400,'Google Photos image contents differ from its type');
-   let name=req.body.name.slice(0,180)||'Google Photos image';
+   type=photosImageType(bytes);
+   if(!type)throw fail(400,'Google Photos returned an unsupported image. Choose JPG, PNG, WebP, GIF or HEIC.');
+   const heic=type==='image/heic';
+   let name=photosImageName(req.body.name,type);
    if(heic){const converted=await normalizeHeicFile(path);type=converted.type;size=converted.size;name=name.replace(/\.hei[cf]$/i,'').slice(0,176)+'.jpg';}
    else size=(await stat(path)).size;
    const db=await pool.connect();
