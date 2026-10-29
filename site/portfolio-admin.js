@@ -6,7 +6,9 @@ import {groups,mediaURL,normalizePortfolio,validatePortfolio,publicPortfolio} fr
 import {pageCopy,copyForElement} from './page-copy.js';
 import {mediaElement,setMediaTypes,mediaType,stopMedia} from './portfolio-media.js';
 export async function contentRequest(path='',options={}){
- const response=await fetch('/api/portfolio/content/'+path,{credentials:'same-origin',...options});
+ const headers=new Headers(options.headers);
+ if(typeof options.body==='string'&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
+ const response=await fetch('/api/portfolio/content/'+path,{credentials:'same-origin',...options,headers});
  let value;try{value=await response.json();}catch{throw Error('The server has not responded. Please try again.');}
  if(!response.ok)throw Error(value.error||'Unable to complete the request');return value;
 }
@@ -137,7 +139,7 @@ export function portfolioAdminUser(user,onSave){
        draft.mediaTypes[media.id]=media.type;setMediaTypes(draft.mediaTypes);select(media.id);
       }
       await refresh();note.textContent='Photos linked and backed up. Save changes to publish.';
-     }catch(error){if(picker&&!picker.closed)picker.close();note.textContent=error.message;}
+     }catch(error){note.textContent='Google Photos: '+error.message;}
      finally{choosePhotos.disabled=false;upload.disabled=false;save.disabled=false;}
     };
     photosTools.append(connectPhotos,choosePhotos);sheet.insertBefore(photosTools,upload);
