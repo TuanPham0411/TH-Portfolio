@@ -117,13 +117,19 @@ export function portfolioAdminUser(user,onSave){
     connectPhotos.onclick=()=>{connectingPhotos=true;note.textContent='Complete Google approval in the new tab, then return here. Your draft stays open.';window.open('/api/portfolio/content/photos/connect','_blank','noopener');};
     updatePhotosConnection();
     const choosePhotos=el('button','Choose from Google Photos','button ghost');choosePhotos.type='button';
-    choosePhotos.onclick=async()=>{
+    const restorePhotos=el('button','Restore missing Google Photos images','button ghost');restorePhotos.type='button';
+    const chooseFromPhotos=async(restoreOnly=false)=>{
      const picker=window.open('about:blank','th-photos-picker');if(picker)picker.opener=null;
-     choosePhotos.disabled=true;upload.disabled=true;save.disabled=true;
+     choosePhotos.disabled=true;restorePhotos.disabled=true;upload.disabled=true;save.disabled=true;
      try{
+      if(restoreOnly){
+       const recovery=await contentRequest('photos/recovery');
+       if(!recovery.missing.length){picker?.close();note.textContent='All linked Google Photos images are available on this server.';return;}
+       note.textContent=`Select the original photos for ${recovery.missing.length} missing images. Existing positions will be preserved.`;
+      }
       const session=await contentRequest('photos/session',{method:'POST',body:JSON.stringify({})});
       if(picker)picker.location.href=session.pickerUri;else{note.textContent='Allow popups to choose Google Photos.';return;}
-      note.textContent='Choose your images in Google Photos, then click Done.';
+      note.textContent=restoreOnly?'Choose the original Portfolio photos in Google Photos, then click Done. Their existing positions will be preserved.':'Choose your images in Google Photos, then click Done.';
       const deadline=Date.now()+600000;let ready=false;
       while(Date.now()<deadline&&sheet.open&&epoch===generation){
        const result=await contentRequest('photos/poll',{method:'POST',body:JSON.stringify({id:session.id})});
@@ -132,17 +138,31 @@ export function portfolioAdminUser(user,onSave){
       }
       if(!ready)throw Error('Photo selection was not completed. Choose again when ready.');
       const selection=await contentRequest('photos/items',{method:'POST',body:JSON.stringify({id:session.id})});
+      const restoredIds=[];let unmatched=0;
       for(const item of selection.items){
        if(!sheet.open||epoch!==generation)break;
        note.textContent='Caching Google Photos image on server: '+item.name+'…';
-       const media=await contentRequest('photos/import',{method:'POST',body:JSON.stringify({id:session.id,itemId:item.id,name:item.name||'Google Photos image'})});
-       draft.mediaTypes[media.id]=media.type;setMediaTypes(draft.mediaTypes);select(media.id);
+       let media;
+       try{media=await contentRequest('photos/import',{method:'POST',body:JSON.stringify({id:session.id,itemId:item.id,name:item.name||'Google Photos image',...(restoreOnly?{restore:true}:{})})});}
+       catch(error){if(restoreOnly&&error.message.includes('does not match an existing photo')){unmatched++;continue;}throw error;}
+       if(restoreOnly){for(const id of media.restoredIds){restoredIds.push(id);draft.mediaTypes[id]=media.type;}}
+       else{draft.mediaTypes[media.id]=media.type;setMediaTypes(draft.mediaTypes);select(media.id);}
       }
-      await refresh();note.textContent='Google Photos images linked and cached on server; images are not copied to Drive. Save changes to publish.';
+      await refresh();
+      if(restoreOnly){
+       for(const image of document.querySelectorAll('img[src]')){
+        const url=new URL(image.src,location.href);
+        if(url.origin===location.origin&&restoredIds.includes(url.pathname.split('/').at(-1))){url.searchParams.set('restored',Date.now());image.src=url.href;}
+       }
+       const recovery=await contentRequest('photos/recovery');
+       note.textContent=`Restored ${restoredIds.length} images in their existing positions. ${recovery.missing.length} still missing.${unmatched?` ${unmatched} selected photos did not match the original images.`:''}`;
+      }else note.textContent='Google Photos images linked and cached on server; images are not copied to Drive. Save changes to publish.';
      }catch(error){note.textContent='Google Photos: '+error.message;}
-     finally{choosePhotos.disabled=false;upload.disabled=false;save.disabled=false;}
+     finally{choosePhotos.disabled=false;restorePhotos.disabled=false;upload.disabled=false;save.disabled=false;}
     };
-    photosTools.append(connectPhotos,choosePhotos);sheet.insertBefore(photosTools,upload);
+    choosePhotos.onclick=()=>chooseFromPhotos(false);
+    restorePhotos.onclick=()=>chooseFromPhotos(true);
+    photosTools.append(connectPhotos,choosePhotos,restorePhotos);sheet.insertBefore(photosTools,upload);
    }
    try{await refresh();}catch(error){note.textContent=error.message;}
   }
