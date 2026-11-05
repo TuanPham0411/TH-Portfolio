@@ -47,5 +47,12 @@ backup for operator recovery instead of silently accepting unsynchronized writes
 Google Photos is Portfolio-only: enable Google Photos Picker API in the platform's
 Google OAuth project, add `https://th.io.vn/api/portfolio/content/photos/callback`,
 and use **Connect Google Photos** in the media library. Only selected images are
-accessible. Selected image IDs are linked in JSON; verified copies are also stored
-on Drive and cached locally because Google Photos download URLs expire.
+accessible. Selected image IDs are linked in JSON, while image bytes are cached
+on the Pi and excluded from the Drive attachment backup. Keep the media volume
+when upgrading. Linking Photos again does not rebuild a deleted cache.
+
+If that cache is lost, open any image chooser in the Portfolio editor and choose
+**Restore missing Google Photos images**. Select the original images again in
+Picker. Persistent Photos IDs match them to existing media IDs, restoring their
+current gallery positions without replacing existing files. The recovery action
+reports unmatched selections and images that are still missing.
