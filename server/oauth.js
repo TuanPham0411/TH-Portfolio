@@ -20,9 +20,17 @@ export function oauthRouter(pool) {
   const credentials=await response.json();if(!response.ok||!credentials.access_token)return res.status(401).send('Google login failed.');
   const identity=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:`Bearer ${credentials.access_token}`},signal:AbortSignal.timeout(15000)});
   const user=await identity.json();if(!identity.ok||user.email_verified!==true||typeof user.email!=='string')return res.status(401).send('Verified email required.');
-   const {rows:[u]}=await pool.query("insert into portfolio.users(email,password,name,verified,admin) values($1,extensions.crypt($2,extensions.gen_salt('bf',10)),$3,true,$4) on conflict(email) do update set password=case when portfolio.users.verified then portfolio.users.password else excluded.password end,verified=true,admin=excluded.admin returning *",[user.email.toLowerCase(),token(),String(user.name||'').slice(0,80),user.email.toLowerCase()===(process.env.OWNER_EMAIL||'eric.scorp93@gmail.com').toLowerCase()]);
-   await pool.query('delete from portfolio.sessions where uid=$1',[u.id]);
-   const value=token();await pool.query('insert into portfolio.sessions(hash,uid) values($1,$2)',[hash(value),u.id]);setPortfolioCookie(res,value);
+   const db=await pool.connect();const value=token();
+   try{
+    // One Drive acknowledgement publishes the account and session together.
+    await db.query('BEGIN');
+    const {rows:[u]}=await db.query("insert into portfolio.users(email,password,name,verified,admin) values($1,extensions.crypt($2,extensions.gen_salt('bf',10)),$3,true,$4) on conflict(email) do update set password=case when portfolio.users.verified then portfolio.users.password else excluded.password end,verified=true,admin=excluded.admin returning *",[user.email.toLowerCase(),token(),String(user.name||'').slice(0,80),user.email.toLowerCase()===(process.env.OWNER_EMAIL||'eric.scorp93@gmail.com').toLowerCase()]);
+    await db.query('delete from portfolio.sessions where uid=$1',[u.id]);
+    await db.query('insert into portfolio.sessions(hash,uid) values($1,$2)',[hash(value),u.id]);
+    await db.query('COMMIT');
+   }catch(error){await db.query('ROLLBACK').catch(()=>{});throw error;}
+   finally{db.release();}
+   setPortfolioCookie(res,value);
   res.redirect('/');
  });
  return r;
