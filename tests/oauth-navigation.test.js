@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import http from 'node:http';
+import {sameOrigin} from '../server/security.js';
+import {oauthRouter} from '../server/oauth.js';
+
+test('external document navigation can start OAuth while cross-site API requests stay blocked', async t => {
+  const old={id:process.env.GOOGLE_CLIENT_ID,secret:process.env.GOOGLE_CLIENT_SECRET};
+  process.env.GOOGLE_CLIENT_ID='navigation-test-client';process.env.GOOGLE_CLIENT_SECRET='navigation-test-secret';
+  t.after(()=>{for(const [key,value] of [['GOOGLE_CLIENT_ID',old.id],['GOOGLE_CLIENT_SECRET',old.secret]]){if(value===undefined)delete process.env[key];else process.env[key]=value;}});
+  const app=express();app.locals.sites={portfolio:'https://th.io.vn',mes:'https://mes.th.io.vn'};
+  app.use(sameOrigin,cookieParser());app.use('/api/oauth',oauthRouter({query(){throw Error('Database must not be called');}}));
+  app.all('/api/write',(req,res)=>res.sendStatus(200));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  // Node fetch overwrites Sec-Fetch-Mode; raw HTTP preserves browser headers.
+  const request=(path,headers={},method='GET')=>new Promise((resolve,reject)=>{
+    const req=http.request({hostname:'127.0.0.1',port:server.address().port,path,method,headers:{Host:'th.io.vn',...headers}},res=>{
+      res.resume();res.on('end',()=>resolve({status:res.statusCode,headers:new Headers(res.headers)}));
+    });req.on('error',reject);req.end();
+  });
+  const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  const response=await request('/api/oauth/start',navigation);
+  assert.equal(response.status,302);
+  const target=new URL(response.headers.get('location'));
+  assert.equal(target.hostname,'accounts.google.com');
+  assert.equal(target.searchParams.get('redirect_uri'),'https://th.io.vn/api/oauth/callback');
+  assert.equal(target.searchParams.get('code_challenge_method'),'S256');
+  assert.match(response.headers.get('set-cookie'),/oauth_state=/);
+  assert.match(response.headers.get('set-cookie'),/oauth_verifier=/);
+  assert.equal((await request('/api/oauth/start',{'sec-fetch-site':'cross-site','sec-fetch-mode':'cors','sec-fetch-dest':'empty'})).status,403);
+  assert.equal((await request('/api/write',navigation,'POST')).status,403);
+  assert.equal((await request('/api/write',{Origin:'https://attacker.example'} ,'POST')).status,403);
+  assert.equal((await request('/api/oauth/callback?state=invalid&code=invalid',navigation)).status,400);
+});

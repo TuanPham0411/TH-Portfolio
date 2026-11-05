@@ -6,6 +6,10 @@ export const validPath = value => typeof value === 'string' && /^issues\/[a-zA-Z
 export const passwordOK = value => typeof value === 'string' && value.length >= 10 && Buffer.byteLength(value) <= 72;
 export function actorFor(session, tester) { return { ...(typeof session === 'string' && /^[a-f0-9]{64}$/.test(session) ? {session} : {}), ...(tester === 'true' ? {tester:true} : {}) }; }
 export function sameOrigin(req,res,next) {
+  // An external link may start login through a top-level browser navigation.
+  // Cross-site fetches and all write requests still follow the origin checks.
+  if (req.method === 'GET' && req.originalUrl.split('?')[0] === '/api/oauth/start'
+      && req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document') return next();
   // Google returns via a cross-site navigation. This exact GET endpoint is
   // protected by OAuth state and the PKCE verifier cookie in oauthRouter.
   if (req.method === 'GET' && ['/api/oauth/callback','/api/mes/drive/callback','/api/portfolio/content/photos/callback'].includes(req.originalUrl.split('?')[0])) return next();
