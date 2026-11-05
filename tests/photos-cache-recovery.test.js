@@ -9,6 +9,9 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import {missingPhotos,restorePhotoCache} from '../server/photos-cache-recovery.js';
 import {portfolioPhotosRouter} from '../server/portfolio-photos.js';
+import {portfolioContentRouter} from '../server/portfolio-content.js';
+import {defaultPortfolio} from '../site/portfolio-model.js';
+import {managedPool} from '../server/th-storage/client.mjs';
 
 async function files(t){
  const root=await mkdtemp(join(tmpdir(),'photos-recovery-'));t.after(()=>rm(root,{recursive:true,force:true}));
@@ -62,4 +65,24 @@ test('authenticated recovery reuses the old media ID, never inserts media or cha
  assert.ok(updates.some(row=>row.sql==='COMMIT'));assert.ok(!updates.some(row=>row.sql.includes('insert into portfolio.media')||row.sql.includes('portfolio.content')));
  assert.equal((await request('unrelated-photo')).status,409);assert.equal(downloads,1);
  authorized=false;assert.equal((await request('original-photo')).status,403);assert.equal(downloads,1);
+});
+
+test('a missing Photos cache returns locally without scanning the Drive journal',async t=>{
+ const root=await files(t),id=randomUUID(),socket=join(root,'unexpected-drive.sock');let driveRequests=0;
+ const broker=http.createServer((req,res)=>{driveRequests++;res.writeHead(503,{'Content-Type':'application/json'});res.end('{"error":"unexpected Drive request"}');});
+ await new Promise(resolve=>broker.listen(socket,resolve));t.after(()=>new Promise(resolve=>broker.close(resolve)));
+ const data=structuredClone(defaultPortfolio);data.profile.portrait=id;
+ const pool={query:async sql=>{
+  if(sql.startsWith('select version,data'))return {rows:[{version:1,data}]};
+  if(sql.startsWith('select id,type'))return {rows:[{id,type:'image/png'}]};
+  if(sql.startsWith('select type,storage_source'))return {rows:[{type:'image/png',storage_source:'google-photos'}]};
+  if(sql.includes('th_storage_head'))return {rows:[{head:randomUUID()}]};
+  throw Error('Unexpected query');
+ }};
+ managedPool(pool,'portfolio',{TH_STORAGE_MODE:'drive-first',TH_STORAGE_SOCKET:socket,TH_STORAGE_TOKEN:'fixture'});
+ const app=express();app.use(cookieParser());app.use('/content',portfolioContentRouter(pool,root));
+ app.use((error,req,res,next)=>res.status(error.status||500).end());
+ const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const response=await fetch('http://127.0.0.1:'+server.address().port+'/content/media/'+id);
+ assert.equal(response.status,404);assert.equal(driveRequests,0);
 });
