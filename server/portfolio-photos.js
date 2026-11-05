@@ -10,6 +10,7 @@ import {filePath,storageQuota} from './storage.js';
 import {brokerRequest,brokerStream} from './th-storage/client.mjs';
 import {photosImageType,photosImageName} from './photos-image-format.js';
 import {normalizeHeicFile} from './heic-upload.js';
+import {missingPhotos,restorePhotoCache} from './photos-cache-recovery.js';
 const fail=(status,message)=>Object.assign(new Error(message),{status,expose:true});
 const config=()=>({application:'portfolio',socketPath:process.env.TH_STORAGE_SOCKET,token:process.env.TH_STORAGE_TOKEN});
 const cookie={httpOnly:true,secure:true,sameSite:'lax',path:'/api/portfolio/content/photos',maxAge:600000};
@@ -31,8 +32,16 @@ export function portfolioPhotosRouter(pool,root){
  router.post('/session',async(req,res)=>res.json(await request('session',{binding:binding(req)})));
  router.post('/poll',async(req,res)=>{if(typeof req.body.id!=='string')throw fail(400,'Invalid selection');res.json(await request('poll',{id:req.body.id,binding:binding(req)}));});
  router.post('/items',async(req,res)=>{if(typeof req.body.id!=='string')throw fail(400,'Invalid selection');res.json(await request('items',{id:req.body.id,binding:binding(req)}));});
+ router.get('/recovery',async(req,res)=>{
+  const {rows}=await pool.query("select m.id,m.size,p.original_name as name from portfolio.media m join portfolio.photos_references p on p.media_id=m.id where m.ready and m.storage_source='google-photos'");
+  const missing=await missingPhotos(root,rows);
+  res.json({missing:missing.map(({id,name})=>({id,name})),total:rows.length});
+ });
  router.post('/import',async(req,res)=>{
   if(typeof req.body.id!=='string'||req.body.id.length>300||typeof req.body.itemId!=='string'||req.body.itemId.length>300||typeof req.body.name!=='string')throw fail(400,'Choose an image with Google Photos Picker');
+  const restoring=req.body.restore===true;
+  const old=restoring?await pool.query("select m.id,m.size,p.photos_id from portfolio.media m join portfolio.photos_references p on p.media_id=m.id where m.ready and m.storage_source='google-photos' and p.photos_id=$1",[req.body.itemId]):null;
+  if(restoring&&!old.rows.length)throw fail(409,'This selected photo does not match an existing photo. Choose the original images used in your Portfolio.');
   const id=randomUUID();let path;
   try{
    const incoming=await brokerStream(config(),'/v1/photos/download',{id:req.body.id,itemId:req.body.itemId,binding:binding(req)});
@@ -47,6 +56,21 @@ export function portfolioPhotosRouter(pool,root){
    let name=photosImageName(req.body.name,type);
    if(heic){const converted=await normalizeHeicFile(path);type=converted.type;size=converted.size;name=name.replace(/\.hei[cf]$/i,'').slice(0,176)+'.jpg';}
    else size=(await stat(path)).size;
+   if(restoring){
+    const result=await restorePhotoCache({root,rows:old.rows,source:{path},persist:async missing=>{
+     const db=await pool.connect();
+     try{
+      await db.query('BEGIN');await db.query('select pg_advisory_xact_lock(74529101)');
+      for(const row of missing){
+       await db.query('update portfolio.media set type=$2,size=$3 where id=$1',[row.id,type,size]);
+       await db.query('update portfolio.photos_references set picker_session=$2 where media_id=$1',[row.id,req.body.id]);
+      }
+      await db.query('COMMIT');
+     }catch(error){await db.query('ROLLBACK');throw error;}finally{db.release();}
+    }});
+    await rm(path,{force:true});path=null;
+    return res.json({...result,type,source:'google-photos',preservedPositions:true});
+   }
    const db=await pool.connect();
    try{
     await db.query('BEGIN');await db.query('select pg_advisory_xact_lock(74529101)');
