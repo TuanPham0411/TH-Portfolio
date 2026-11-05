@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import http from 'node:http';
 import {sameOrigin} from '../server/security.js';
 import {oauthRouter} from '../server/oauth.js';
 
@@ -14,7 +15,12 @@ test('external document navigation can start OAuth while cross-site API requests
   app.all('/api/write',(req,res)=>res.sendStatus(200));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   t.after(()=>new Promise(resolve=>server.close(resolve)));
-  const request=(path,headers={},method='GET')=>fetch('http://127.0.0.1:'+server.address().port+path,{redirect:'manual',method,headers:{Host:'th.io.vn',...headers}});
+  // Node fetch overwrites Sec-Fetch-Mode; raw HTTP preserves browser headers.
+  const request=(path,headers={},method='GET')=>new Promise((resolve,reject)=>{
+    const req=http.request({hostname:'127.0.0.1',port:server.address().port,path,method,headers:{Host:'th.io.vn',...headers}},res=>{
+      res.resume();res.on('end',()=>resolve({status:res.statusCode,headers:new Headers(res.headers)}));
+    });req.on('error',reject);req.end();
+  });
   const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
   const response=await request('/api/oauth/start',navigation);
   assert.equal(response.status,302);
